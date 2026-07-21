@@ -124,10 +124,12 @@ private struct WaveformView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
             ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+                let safeLevel = level.isFinite ? min(max(level, 0.08), 1) : 0.08
+
                 Capsule()
                     .fill(.red.gradient)
-                    .frame(width: 6, height: max(8, level * 70))
-                    .animation(.easeOut(duration: 0.08), value: level)
+                    .frame(width: 6, height: max(8, safeLevel * 70))
+                    .animation(.easeOut(duration: 0.08), value: safeLevel)
             }
         }
         .frame(maxWidth: .infinity)
