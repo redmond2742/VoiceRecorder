@@ -1,9 +1,15 @@
+import AVFoundation
 import SwiftUI
 
 struct RecordingsView: View {
     @EnvironmentObject private var store: RecordingStore
     @State private var selected = Set<Recording.ID>()
     @State private var newFolderName = ""
+    @State private var player: AVAudioPlayer?
+    @State private var playingRecordingID: Recording.ID?
+    @State private var playbackRate: Float = 1
+
+    private let playbackRates: [Float] = [1, 1.5, 2]
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -37,7 +43,7 @@ struct RecordingsView: View {
             ForEach(store.folders) { folder in
                 Section {
                     ForEach(store.recordings.filter { $0.folderName == folder.name }) { recording in
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text(dateFormatter.string(from: recording.createdAt))
                                 .font(.headline)
                             Text(recording.fileName)
@@ -46,6 +52,21 @@ struct RecordingsView: View {
                             Text("Duration: \(Int(recording.duration.rounded())) seconds")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                Button { togglePlayback(for: recording) } label: {
+                                    Label(isPlaying(recording) ? "Pause" : "Play", systemImage: isPlaying(recording) ? "pause.fill" : "play.fill")
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button { cyclePlaybackRate() } label: {
+                                    Text(playbackRateLabel)
+                                        .font(.caption.weight(.bold))
+                                        .frame(minWidth: 42)
+                                }
+                                .buttonStyle(.bordered)
+                                .accessibilityLabel("Playback speed")
+                                .accessibilityValue(playbackRateLabel)
+                            }
                         }
                     }
                 } header: {
@@ -83,5 +104,45 @@ struct RecordingsView: View {
                 }
             }
         }
+        .onDisappear { stopPlayback() }
+    }
+
+    private var playbackRateLabel: String {
+        playbackRate == 1 ? "1x" : "\(playbackRate.formatted())x"
+    }
+
+    private func isPlaying(_ recording: Recording) -> Bool {
+        playingRecordingID == recording.id && player?.isPlaying == true
+    }
+
+    private func togglePlayback(for recording: Recording) {
+        if isPlaying(recording) {
+            player?.pause()
+            return
+        }
+
+        do {
+            let audioPlayer = try AVAudioPlayer(contentsOf: recording.url)
+            audioPlayer.enableRate = true
+            audioPlayer.rate = playbackRate
+            audioPlayer.play()
+            player = audioPlayer
+            playingRecordingID = recording.id
+        } catch {
+            stopPlayback()
+        }
+    }
+
+    private func cyclePlaybackRate() {
+        let currentIndex = playbackRates.firstIndex(of: playbackRate) ?? 0
+        playbackRate = playbackRates[(currentIndex + 1) % playbackRates.count]
+        player?.enableRate = true
+        player?.rate = playbackRate
+    }
+
+    private func stopPlayback() {
+        player?.stop()
+        player = nil
+        playingRecordingID = nil
     }
 }

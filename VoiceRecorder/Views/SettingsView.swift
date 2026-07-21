@@ -24,15 +24,10 @@ struct SettingsView: View {
 
             Section("City questions") {
                 ForEach(settings.questions.indices, id: \.self) { index in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                        TextField("Question", text: Binding(
-                            get: { settings.questions[index] },
-                            set: { settings.questions[index] = $0 }
-                        ), axis: .vertical)
-                    }
+                    TextField("Question", text: Binding(
+                        get: { settings.questions[index] },
+                        set: { settings.questions[index] = $0 }
+                    ), axis: .vertical)
                 }
                 .onDelete { settings.questions.remove(atOffsets: $0) }
                 .onMove { settings.questions.move(fromOffsets: $0, toOffset: $1) }

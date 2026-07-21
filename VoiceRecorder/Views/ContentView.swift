@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: RecordingStore
     @EnvironmentObject private var settings: AppSettings
-    @State private var prompt = "What do you love most about your city?"
+    @State private var selectedQuestionIndex = 0
     @State private var secondsRemaining = 45
     @State private var timer: Timer?
     @State private var errorMessage: String?
@@ -15,11 +15,19 @@ struct ContentView: View {
                     Text("City Prompt")
                         .font(.headline)
                         .foregroundStyle(.secondary)
-                    Text(prompt)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.6)
-                        .padding(.horizontal)
+                    TabView(selection: $selectedQuestionIndex) {
+                        ForEach(Array(settings.availableQuestions.enumerated()), id: \.offset) { index, question in
+                            Text(question)
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .multilineTextAlignment(.center)
+                                .minimumScaleFactor(0.6)
+                                .padding(.horizontal)
+                                .tag(index)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: store.isRecording ? .never : .always))
+                    .disabled(store.isRecording)
+                    .animation(.easeInOut, value: selectedQuestionIndex)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.blue.opacity(0.08))
@@ -80,13 +88,14 @@ struct ContentView: View {
             }
             .onAppear {
                 secondsRemaining = settings.recordingLimit
-                prompt = settings.previewQuestion
+                selectedQuestionIndex = min(selectedQuestionIndex, max(settings.availableQuestions.count - 1, 0))
             }
         }
     }
 
     private func startRecording() {
-        prompt = settings.nextQuestion()
+        selectedQuestionIndex = min(selectedQuestionIndex, max(settings.availableQuestions.count - 1, 0))
+        let prompt = settings.availableQuestions[selectedQuestionIndex]
         secondsRemaining = settings.recordingLimit
         Task {
             do {
@@ -115,6 +124,7 @@ struct ContentView: View {
         timer = nil
         store.stop()
         secondsRemaining = settings.recordingLimit
+        selectedQuestionIndex = settings.nextQuestionIndex(after: selectedQuestionIndex)
     }
 }
 
