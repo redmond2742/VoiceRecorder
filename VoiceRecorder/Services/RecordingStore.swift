@@ -56,7 +56,7 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let url = folderURL.appendingPathComponent(Self.fileName(for: Date()))
         let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEGLayer3),
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44_100,
             AVNumberOfChannelsKey: 1,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
@@ -100,13 +100,22 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
                 guard let self, let recorder = self.recorder else { return }
                 recorder.updateMeters()
                 let power = recorder.averagePower(forChannel: 0)
-                let normalized = max(0.08, min(1, CGFloat((power + 55) / 55)))
+                let normalized = Self.normalizedAudioLevel(fromAveragePower: power)
                 self.audioLevels.append(normalized)
                 if self.audioLevels.count > 28 {
                     self.audioLevels.removeFirst(self.audioLevels.count - 28)
                 }
             }
         }
+    }
+
+    private static func normalizedAudioLevel(fromAveragePower power: Float) -> CGFloat {
+        guard power.isFinite else { return 0.08 }
+
+        let normalized = CGFloat((power + 55) / 55)
+        guard normalized.isFinite else { return 0.08 }
+
+        return min(max(normalized, 0.08), 1)
     }
 
     private func loadRecordings() {
@@ -138,7 +147,7 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
                 options: [.skipsHiddenFiles]
             )) ?? []
             return urls
-                .filter { $0.pathExtension.lowercased() == "mp3" }
+                .filter { Self.supportedRecordingExtensions.contains($0.pathExtension.lowercased()) }
                 .map { url in
                     let values = try? url.resourceValues(forKeys: [.creationDateKey])
                     let createdAt = values?.creationDate ?? Date.distantPast
@@ -173,10 +182,12 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
             .appendingPathComponent("Recordings", isDirectory: true)
     }
 
+    private static let supportedRecordingExtensions: Set<String> = ["m4a", "mp3"]
+
     private static func fileName(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        return "CityVoice_\(formatter.string(from: date)).mp3"
+        return "CityVoice_\(formatter.string(from: date)).m4a"
     }
 
     private enum Keys {
