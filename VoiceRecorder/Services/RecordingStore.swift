@@ -24,8 +24,14 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
 
     func requestPermission() async {
         let granted = await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { allowed in
-                continuation.resume(returning: allowed)
+            if #available(iOS 17.0, *) {
+                AVAudioApplication.requestRecordPermission { allowed in
+                    continuation.resume(returning: allowed)
+                }
+            } else {
+                AVCaptureDevice.requestAccess(for: .audio) { allowed in
+                    continuation.resume(returning: allowed)
+                }
             }
         }
         permissionDenied = !granted
@@ -118,7 +124,34 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
         return min(max(normalized, 0.08), 1)
     }
 
+    func deleteRecording(_ recording: Recording) {
+        try? FileManager.default.removeItem(at: recording.url)
+        loadRecordings()
+    }
+
+    func deleteRecordings(at offsets: IndexSet, in folder: RecordingFolder) {
+        let folderRecordings = recordings.filter { $0.folderName == folder.name }
+        for offset in offsets {
+            guard folderRecordings.indices.contains(offset) else { continue }
+            try? FileManager.default.removeItem(at: folderRecordings[offset].url)
+        }
+        loadRecordings()
+    }
+
+    func deleteFolder(_ folder: RecordingFolder) {
+        try? FileManager.default.removeItem(at: folder.url)
+        if currentFolderName == folder.name {
+            currentFolderName = "Default"
+            UserDefaults.standard.set(currentFolderName, forKey: Keys.currentFolderName)
+        }
+        loadRecordings()
+    }
+
     private func loadRecordings() {
+        Task { await loadRecordingsFromDisk() }
+    }
+
+    private func loadRecordingsFromDisk() async {
         try? FileManager.default.createDirectory(at: Self.recordingsDirectory, withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: url(forFolderNamed: currentFolderName).path) {
             try? FileManager.default.createDirectory(at: url(forFolderNamed: currentFolderName), withIntermediateDirectories: true)
@@ -140,22 +173,25 @@ final class RecordingStore: NSObject, ObservableObject, AVAudioRecorderDelegate 
             return
         }
 
-        recordings = folders.flatMap { folder in
+        var loadedRecordings: [Recording] = []
+        for folder in folders {
             let urls = (try? FileManager.default.contentsOfDirectory(
                 at: folder.url,
                 includingPropertiesForKeys: [.creationDateKey],
                 options: [.skipsHiddenFiles]
             )) ?? []
-            return urls
-                .filter { Self.supportedRecordingExtensions.contains($0.pathExtension.lowercased()) }
-                .map { url in
-                    let values = try? url.resourceValues(forKeys: [.creationDateKey])
-                    let createdAt = values?.creationDate ?? Date.distantPast
-                    let asset = AVURLAsset(url: url)
-                    let duration = CMTimeGetSeconds(asset.duration)
-                    return Recording(id: UUID(), url: url, createdAt: createdAt, prompt: "City prompt", duration: duration.isFinite ? duration : 0, folderName: folder.name)
-                }
-        }.sorted { $0.createdAt > $1.createdAt }
+
+            for url in urls where Self.supportedRecordingExtensions.contains(url.pathExtension.lowercased()) {
+                let values = try? url.resourceValues(forKeys: [.creationDateKey])
+                let createdAt = values?.creationDate ?? Date.distantPast
+                let asset = AVURLAsset(url: url)
+                let durationTime = (try? await asset.load(.duration)) ?? .zero
+                let duration = CMTimeGetSeconds(durationTime)
+                loadedRecordings.append(Recording(url: url, createdAt: createdAt, prompt: "City prompt", duration: duration.isFinite ? duration : 0, folderName: folder.name))
+            }
+        }
+
+        recordings = loadedRecordings.sorted { $0.createdAt > $1.createdAt }
     }
 
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {

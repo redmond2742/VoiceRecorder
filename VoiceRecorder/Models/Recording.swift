@@ -1,7 +1,7 @@
 import Foundation
 
 struct Recording: Identifiable, Codable, Hashable {
-    let id: UUID
+    var id: URL { url }
     let url: URL
     let createdAt: Date
     let prompt: String
