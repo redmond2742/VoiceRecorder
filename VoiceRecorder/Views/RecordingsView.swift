@@ -3,6 +3,7 @@ import SwiftUI
 struct RecordingsView: View {
     @EnvironmentObject private var store: RecordingStore
     @State private var selected = Set<Recording.ID>()
+    @State private var newFolderName = ""
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -12,16 +13,51 @@ struct RecordingsView: View {
     }()
 
     var body: some View {
-        List(store.recordings, selection: $selected) { recording in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(dateFormatter.string(from: recording.createdAt))
-                    .font(.headline)
-                Text(recording.fileName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Duration: \(Int(recording.duration.rounded())) seconds")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        List(selection: $selected) {
+            Section("Default recording folder") {
+                Picker("Record to", selection: Binding(
+                    get: { store.currentFolderName },
+                    set: { store.setCurrentFolder($0) }
+                )) {
+                    ForEach(store.folders) { folder in
+                        Text(folder.name).tag(folder.name)
+                    }
+                }
+
+                HStack {
+                    TextField("New folder", text: $newFolderName)
+                    Button("Create") {
+                        store.createFolder(named: newFolderName)
+                        newFolderName = ""
+                    }
+                    .disabled(newFolderName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+
+            ForEach(store.folders) { folder in
+                Section {
+                    ForEach(store.recordings.filter { $0.folderName == folder.name }) { recording in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(dateFormatter.string(from: recording.createdAt))
+                                .font(.headline)
+                            Text(recording.fileName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Duration: \(Int(recording.duration.rounded())) seconds")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text(folder.name)
+                        Spacer()
+                        ShareLink(items: store.exportURLs(forFolder: folder)) {
+                            Label("Export Folder", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(store.exportURLs(forFolder: folder).isEmpty)
+                    }
+                }
             }
         }
         .navigationTitle("Recordings")
@@ -41,7 +77,7 @@ struct RecordingsView: View {
                         .font(.largeTitle)
                     Text("No Recordings")
                         .font(.headline)
-                    Text("Start a city prompt recording to create your first clip.")
+                    Text("Start a city prompt recording to create your first MP3 clip.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

@@ -24,12 +24,18 @@ struct SettingsView: View {
 
             Section("City questions") {
                 ForEach(settings.questions.indices, id: \.self) { index in
-                    TextField("Question", text: Binding(
-                        get: { settings.questions[index] },
-                        set: { settings.questions[index] = $0 }
-                    ), axis: .vertical)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: "line.3.horizontal")
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        TextField("Question", text: Binding(
+                            get: { settings.questions[index] },
+                            set: { settings.questions[index] = $0 }
+                        ), axis: .vertical)
+                    }
                 }
                 .onDelete { settings.questions.remove(atOffsets: $0) }
+                .onMove { settings.questions.move(fromOffsets: $0, toOffset: $1) }
 
                 Button { settings.questions.append("") } label: {
                     Label("Add Question", systemImage: "plus")
@@ -37,6 +43,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .toolbar { EditButton() }
     }
 
     private func label(for seconds: Int) -> String {

@@ -24,20 +24,33 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.blue.opacity(0.08))
 
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     if store.isRecording {
+                        Label("Recording", systemImage: "record.circle.fill")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.red)
+                        WaveformView(levels: store.audioLevels)
+                            .frame(height: 72)
+                            .padding(.horizontal)
                         Text("\(secondsRemaining)")
                             .font(.system(size: 104, weight: .black, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(.red)
                             .accessibilityLabel("\(secondsRemaining) seconds remaining")
+                        Spacer(minLength: 10)
                         Button("Stop", role: .destructive) { stopRecording() }
+                            .font(.title2.weight(.bold))
                             .buttonStyle(.borderedProminent)
-                            .controlSize(.regular)
+                            .controlSize(.large)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 28)
                     } else {
+                        Text("Recording to: \(store.currentFolderName)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
                         Button(action: startRecording) {
                             ZStack {
-                                Circle().fill(.red)
+                                Circle().fill(.green)
                                 Text("START")
                                     .font(.system(size: 38, weight: .black, design: .rounded))
                                     .foregroundStyle(.white)
@@ -102,5 +115,22 @@ struct ContentView: View {
         timer = nil
         store.stop()
         secondsRemaining = settings.recordingLimit
+    }
+}
+
+private struct WaveformView: View {
+    let levels: [CGFloat]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+                Capsule()
+                    .fill(.red.gradient)
+                    .frame(width: 6, height: max(8, level * 70))
+                    .animation(.easeOut(duration: 0.08), value: level)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel("Live audio waveform")
     }
 }
