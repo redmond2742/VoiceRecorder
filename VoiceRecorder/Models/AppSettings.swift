@@ -10,6 +10,7 @@ enum QuestionMode: String, CaseIterable, Identifiable {
 
 final class AppSettings: ObservableObject {
     static let durationOptions = [20, 30, 45, 60, 90, 120, 180, 240, 300]
+    static let fallbackQuestion = "Tell us something about your city."
 
     @Published var recordingLimit: Int {
         didSet { UserDefaults.standard.set(recordingLimit, forKey: Keys.recordingLimit) }
@@ -51,12 +52,17 @@ final class AppSettings: ObservableObject {
     }
 
     var previewQuestion: String {
-        cleanedQuestions.first ?? "Tell us something about your city."
+        cleanedQuestions.first ?? Self.fallbackQuestion
+    }
+
+    var availableQuestions: [String] {
+        let cleaned = cleanedQuestions
+        return cleaned.isEmpty ? [Self.fallbackQuestion] : cleaned
     }
 
     func nextQuestion() -> String {
         let cleaned = cleanedQuestions
-        guard !cleaned.isEmpty else { return "Tell us something about your city." }
+        guard !cleaned.isEmpty else { return Self.fallbackQuestion }
 
         switch questionMode {
         case .random:
@@ -65,6 +71,22 @@ final class AppSettings: ObservableObject {
             let question = cleaned[sequentialIndex % cleaned.count]
             sequentialIndex = (sequentialIndex + 1) % cleaned.count
             return question
+        }
+    }
+
+    func nextQuestionIndex(after index: Int) -> Int {
+        let questions = availableQuestions
+        guard questions.count > 1 else { return 0 }
+
+        switch questionMode {
+        case .random:
+            var next = Int.random(in: 0..<questions.count)
+            if next == index {
+                next = (next + 1) % questions.count
+            }
+            return next
+        case .sequential:
+            return (index + 1) % questions.count
         }
     }
 
